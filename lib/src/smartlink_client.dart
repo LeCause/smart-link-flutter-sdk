@@ -237,6 +237,7 @@ class SmartLinkClient {
       final deferredService = DeferredDeepLinkService(
         apiService: _api,
         fingerprintService: _fingerprint,
+        storageService: _storage,
       );
 
       // Try to match using best available method (referrer on Android, fingerprint on iOS)
@@ -790,6 +791,7 @@ class SmartLinkClient {
       final deferredService = DeferredDeepLinkService(
         apiService: _api,
         fingerprintService: _fingerprint,
+        storageService: _storage,
       );
 
       // Use the new method that supports Android referrer

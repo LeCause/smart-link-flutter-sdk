@@ -11,6 +11,7 @@ import '../utils/logger.dart';
 import 'api_service.dart';
 import 'fingerprint_service.dart';
 import 'install_referrer_service.dart';
+import 'storage_service.dart';
 
 /// Service for handling deferred deep linking
 ///
@@ -26,14 +27,16 @@ import 'install_referrer_service.dart';
 class DeferredDeepLinkService {
   final ApiService apiService;
   final FingerprintService fingerprintService;
+  final StorageService storageService;
   final InstallReferrerService _installReferrer;
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
   DeferredDeepLinkService({
     required this.apiService,
     required this.fingerprintService,
+    required this.storageService,
     InstallReferrerService? installReferrerService,
-  }) : _installReferrer = installReferrerService ?? InstallReferrerService();
+  }) : _installReferrer = installReferrerService ?? InstallReferrerService(storageService);
 
   /// Match deferred deep link with retry logic and exponential backoff
   ///
