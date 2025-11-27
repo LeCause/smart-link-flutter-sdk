@@ -1,6 +1,6 @@
 # FlutterFlow Integration Examples
 
-This directory contains example custom actions for integrating the SmartLink SDK in FlutterFlow apps.
+This directory contains example custom actions for integrating the LinkGravity SDK in FlutterFlow apps.
 
 ## ⚠️ Important Notes
 
@@ -10,26 +10,26 @@ The files in this directory are **examples** meant to be **copied into FlutterFl
 
 ### `actions.dart`
 Pre-built FlutterFlow custom actions that work with the current SDK API. These include:
-- `initSmartLink()` - Initialize the SDK
-- `createSmartLink()` - Create short links
-- `trackSmartLinkEvent()` - Track analytics events
+- `initLinkGravity()` - Initialize the SDK
+- `createLinkGravity()` - Create short links
+- `trackLinkGravityEvent()` - Track analytics events
 - And many more...
 
-### `attach_smartlink_listener.dart` ⭐ **NEW**
+### `attach_linkgravity_listener.dart` ⭐ **NEW**
 Example showing the **new simplified route registration API**. This replaces the old manual stream subscription approach.
 
 ## 🚀 How to Use in FlutterFlow
 
 ### Method 1: Using the New Route Registration (Recommended)
 
-**Step 1:** Copy `attach_smartlink_listener.dart` content
+**Step 1:** Copy `attach_linkgravity_listener.dart` content
 
 **Step 2:** In FlutterFlow:
 1. Go to **Custom Code** → **Actions** → **Add Action**
-2. Name it: `attachSmartLinkListener`
+2. Name it: `attachLinkGravityListener`
 3. Add parameter: `context` (type: `BuildContext`)
 4. Set return type: `Future<void>`
-5. Paste the code from `attach_smartlink_listener.dart`
+5. Paste the code from `attach_linkgravity_listener.dart`
 
 **Step 3:** Customize the routes map to match your app's pages
 
@@ -40,9 +40,9 @@ Example showing the **new simplified route registration API**. This replaces the
 **Step 1:** Add the SDK as a dependency in FlutterFlow:
 ```yaml
 dependencies:
-  smartlink_flutter_sdk:
+  linkgravity_flutter_sdk:
     git:
-      url: https://github.com/your-org/smartlink_flutter_sdk.git
+      url: https://github.com/your-org/linkgravity_flutter_sdk.git
       ref: main
 ```
 
@@ -56,13 +56,13 @@ dependencies:
 
 **Action 1: Initialize SDK (in main.dart final action)**
 ```dart
-import 'package:smartlink_flutter_sdk/smartlink_flutter_sdk.dart';
+import 'package:linkgravity_flutter_sdk/linkgravity_flutter_sdk.dart';
 
-Future<bool> initializeSmartLink() async {
-  await SmartLinkClient.initialize(
+Future<bool> initializeLinkGravity() async {
+  await LinkGravityClient.initialize(
     baseUrl: 'https://your-api.com',
     apiKey: 'your-key',
-    config: SmartLinkConfig(
+    config: LinkGravityConfig(
       enableAnalytics: true,
       enableDeepLinking: true,
     ),
@@ -73,10 +73,10 @@ Future<bool> initializeSmartLink() async {
 
 **Action 2: Attach Routes (on first page load)**
 ```dart
-import 'package:smartlink_flutter_sdk/smartlink_flutter_sdk.dart';
+import 'package:linkgravity_flutter_sdk/linkgravity_flutter_sdk.dart';
 
-Future<void> attachSmartLinkListener(BuildContext context) async {
-  SmartLinkClient.instance.registerRoutes(
+Future<void> attachLinkGravityListener(BuildContext context) async {
+  LinkGravityClient.instance.registerRoutes(
     context: context,
     routes: {
       '/product': (deepLink) => RouteAction.goNamed(
@@ -97,15 +97,15 @@ If you're currently using the manual stream subscription approach, here's how to
 ### Before (Old Approach)
 ```dart
 // Required 2 separate custom actions with ~80 lines of code
-// Action 1: initializeSmartLink() ~30 lines
+// Action 1: initializeLinkGravity() ~30 lines
 // Action 2: setupDeepLinkListener() ~50 lines with manual handling
 ```
 
 ### After (New Approach)
 ```dart
 // Still 2 actions, but much simpler (~40 lines total)
-// Action 1: initializeSmartLink() ~15 lines (unchanged)
-// Action 2: attachSmartLinkListener() ~25 lines (simplified)
+// Action 1: initializeLinkGravity() ~15 lines (unchanged)
+// Action 2: attachLinkGravityListener() ~25 lines (simplified)
 ```
 
 **What changed:**
@@ -132,8 +132,8 @@ A: These are example files meant for FlutterFlow. The imports only exist when co
 **Q: Can I use these files directly from the package?**
 A: No, these are templates. Copy the code into FlutterFlow Custom Actions.
 
-**Q: Do I need both actions.dart and attach_smartlink_listener.dart?**
-A: No. Use `actions.dart` for pre-built functions, OR create your own based on `attach_smartlink_listener.dart` example.
+**Q: Do I need both actions.dart and attach_linkgravity_listener.dart?**
+A: No. Use `actions.dart` for pre-built functions, OR create your own based on `attach_linkgravity_listener.dart` example.
 
 ## 📚 Additional Resources
 

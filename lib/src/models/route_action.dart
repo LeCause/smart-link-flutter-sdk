@@ -118,7 +118,7 @@ class RouteAction {
   /// It uses [scheduleMicrotask] to avoid navigation-during-build errors.
   ///
   /// You typically don't need to call this directly - the SDK handles it
-  /// when you register routes with [SmartLinkClient.registerRoutes].
+  /// when you register routes with [LinkGravityClient.registerRoutes].
   void execute(BuildContext context) {
     scheduleMicrotask(() {
       try {

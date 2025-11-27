@@ -415,7 +415,7 @@ class LinkGravityClient {
   ///
   /// Example:
   /// ```dart
-  /// SmartLinkClient.instance.registerRoutes(
+  /// LinkGravityClient.instance.registerRoutes(
   ///   context: context,
   ///   routes: {
   ///     '/product': (deepLink) => RouteAction.goNamed(
@@ -673,7 +673,7 @@ class LinkGravityClient {
   ///
   /// Example:
   /// ```dart
-  /// final utm = smartLink.getInstallReferrerUTM();
+  /// final utm = linkGravity.getInstallReferrerUTM();
   /// if (utm.isNotEmpty) {
   ///   print('Installed from: ${utm.source}');
   ///   print('Campaign: ${utm.campaign}');
@@ -692,7 +692,7 @@ class LinkGravityClient {
   ///
   /// Example:
   /// ```dart
-  /// final utm = await smartLink.getCachedInstallUTM();
+  /// final utm = await linkGravity.getCachedInstallUTM();
   /// if (utm != null) {
   ///   print('Original install source: ${utm.source}');
   ///   print('Original campaign: ${utm.campaign}');
@@ -712,7 +712,7 @@ class LinkGravityClient {
   ///
   /// Example:
   /// ```dart
-  /// final utm = smartLink.currentUTM;
+  /// final utm = linkGravity.currentUTM;
   /// if (utm != null) {
   ///   print('Current attribution: ${utm.source} / ${utm.campaign}');
   /// }
@@ -734,17 +734,17 @@ class LinkGravityClient {
   /// Example:
   /// ```dart
   /// // Set custom UTM for email campaign
-  /// smartLink.setUTM(UTMParams(
+  /// linkGravity.setUTM(UTMParams(
   ///   source: 'email',
   ///   campaign: 'summer-2024',
   ///   medium: 'newsletter',
   /// ));
   ///
   /// // Track events with this attribution
-  /// await smartLink.trackEvent('purchase', {'amount': 99.99});
+  /// await linkGravity.trackEvent('purchase', {'amount': 99.99});
   ///
   /// // Clear custom UTM (revert to install UTM)
-  /// smartLink.setUTM(null);
+  /// linkGravity.setUTM(null);
   /// ```
   void setUTM(UTMParams? utm) {
     _analytics.setUTM(utm);
