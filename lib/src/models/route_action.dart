@@ -1,146 +1,80 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'deep_link_data.dart';
+import '../utils/logger.dart';
 
 /// Action to perform when a deep link route is matched
 ///
-/// Supports FlutterFlow navigation patterns including goNamed and custom handlers.
+/// This class wraps a navigation handler that receives both the BuildContext
+/// and DeepLinkData when a deep link is matched.
 ///
-/// Example:
+/// The handler is automatically wrapped in [scheduleMicrotask] to prevent
+/// navigation-during-build errors.
+///
+/// Example usage:
 /// ```dart
-/// // Simple navigation
-/// RouteAction.goNamed('ProductPage', extra: {'id': '123'})
+/// // FlutterFlow with go_router
+/// RouteAction((context, deepLink) {
+///   context.goNamed(
+///     'ProductPage',
+///     extra: {'id': deepLink.getParam('id')},
+///   );
+/// })
 ///
-/// // Custom handler with conditional logic
-/// RouteAction.custom((context) {
-///   if (condition) {
-///     context.pushNamed('PageA');
+/// // Standard Flutter Navigator
+/// RouteAction((context, deepLink) {
+///   Navigator.of(context).pushNamed(
+///     '/product',
+///     arguments: deepLink.params,
+///   );
+/// })
+///
+/// // Custom logic
+/// RouteAction((context, deepLink) {
+///   final productId = deepLink.getParam('id');
+///   if (productId != null) {
+///     context.goNamed('ProductDetails', extra: {'id': productId});
 ///   } else {
-///     context.goNamed('PageB');
+///     context.goNamed('HomePage');
 ///   }
 /// })
 /// ```
 class RouteAction {
-  final RouteActionType _type;
-  final String? _routeName;
-  final Map<String, dynamic>? _extra;
-  final Map<String, String>? _pathParameters;
-  final Map<String, dynamic>? _queryParameters;
-  final bool _ignoreRedirect;
-  final Function(BuildContext)? _customHandler;
+  /// Navigation handler that receives BuildContext and DeepLinkData
+  final void Function(BuildContext context, DeepLinkData deepLink) handler;
 
-  const RouteAction._({
-    required RouteActionType type,
-    String? routeName,
-    Map<String, dynamic>? extra,
-    Map<String, String>? pathParameters,
-    Map<String, dynamic>? queryParameters,
-    bool ignoreRedirect = false,
-    Function(BuildContext)? customHandler,
-  })  : _type = type,
-        _routeName = routeName,
-        _extra = extra,
-        _pathParameters = pathParameters,
-        _queryParameters = queryParameters,
-        _ignoreRedirect = ignoreRedirect,
-        _customHandler = customHandler;
-
-  /// Navigate to a named route (FlutterFlow style)
+  /// Create a route action with a navigation handler
   ///
-  /// This is the primary method for simple route navigation in FlutterFlow apps.
-  /// It supports all FlutterFlow navigation parameters.
-  ///
-  /// Parameters:
-  /// - [routeName]: The name of the route to navigate to (required)
-  /// - [extra]: Extra data to pass to the route (serializable objects)
-  /// - [pathParameters]: Path parameters for the route (string key-value pairs)
-  /// - [queryParameters]: Query parameters for the route
-  /// - [ignoreRedirect]: Whether to ignore redirects (default: false)
+  /// The [handler] function will be called when a deep link route is matched.
+  /// It receives:
+  /// - [context]: The BuildContext for navigation (always valid and mounted)
+  /// - [deepLink]: The DeepLinkData containing route info, params, and metadata
   ///
   /// Example:
   /// ```dart
-  /// RouteAction.goNamed(
-  ///   'ProductPage',
-  ///   extra: {'productId': '123'},
-  ///   pathParameters: {'id': '123'},
-  ///   queryParameters: {'ref': 'campaign'},
-  /// )
-  /// ```
-  static RouteAction goNamed(
-    String routeName, {
-    Map<String, dynamic>? extra,
-    Map<String, String>? pathParameters,
-    Map<String, dynamic>? queryParameters,
-    bool ignoreRedirect = false,
-  }) {
-    return RouteAction._(
-      type: RouteActionType.goNamed,
-      routeName: routeName,
-      extra: extra,
-      pathParameters: pathParameters,
-      queryParameters: queryParameters,
-      ignoreRedirect: ignoreRedirect,
-    );
-  }
-
-  /// Custom navigation handler with full control
-  ///
-  /// Use this when you need complex logic or want to use different
-  /// navigation methods like pushNamed, pushReplacementNamed, pop, etc.
-  ///
-  /// The handler receives a [BuildContext] and can perform any navigation
-  /// logic. The handler is automatically wrapped in scheduleMicrotask to
-  /// prevent navigation-during-build errors.
-  ///
-  /// Parameters:
-  /// - [handler]: Function that receives BuildContext and performs navigation
-  ///
-  /// Example:
-  /// ```dart
-  /// RouteAction.custom((context) {
-  ///   final productId = someLogic();
-  ///   if (productId.isNotEmpty) {
-  ///     context.pushNamed('ProductDetails', extra: {'id': productId});
-  ///   } else {
-  ///     context.goNamed('HomePage');
-  ///   }
+  /// RouteAction((ctx, data) {
+  ///   ctx.goNamed('ProductPage', extra: data.params);
   /// })
   /// ```
-  static RouteAction custom(Function(BuildContext) handler) {
-    return RouteAction._(
-      type: RouteActionType.custom,
-      customHandler: handler,
-    );
-  }
+  const RouteAction(this.handler);
 
   /// Execute the navigation action
   ///
   /// This method is called internally by the SDK when a route is matched.
   /// It uses [scheduleMicrotask] to avoid navigation-during-build errors.
   ///
+  /// Parameters:
+  /// - [context]: The BuildContext for navigation
+  /// - [deepLink]: The matched deep link data
+  ///
   /// You typically don't need to call this directly - the SDK handles it
   /// when you register routes with [LinkGravityClient.registerRoutes].
-  void execute(BuildContext context) {
+  void execute(BuildContext context, DeepLinkData deepLink) {
     scheduleMicrotask(() {
       try {
-        switch (_type) {
-          case RouteActionType.goNamed:
-            // Use dynamic invocation to avoid hard dependency on FlutterFlow
-            // The context.goNamed extension comes from FlutterFlow's generated code
-            final dynamic ctx = context;
-            ctx.goNamed(
-              _routeName!,
-              extra: _extra,
-              pathParameters: _pathParameters,
-              queryParameters: _queryParameters,
-              ignoreRedirect: _ignoreRedirect,
-            );
-            break;
-          case RouteActionType.custom:
-            _customHandler?.call(context);
-            break;
-        }
-      } catch (e) {
-        // Rethrow to allow SDK to handle and log the error
+        handler(context, deepLink);
+      } catch (e, stackTrace) {
+        LinkGravityLogger.error('Route handler failed', e, stackTrace);
         rethrow;
       }
     });
@@ -148,15 +82,6 @@ class RouteAction {
 
   @override
   String toString() {
-    return 'RouteAction(type: $_type, routeName: $_routeName, extra: $_extra)';
+    return 'RouteAction(handler: $handler)';
   }
-}
-
-/// Type of route action
-enum RouteActionType {
-  /// Navigate using FlutterFlow's goNamed
-  goNamed,
-
-  /// Execute custom navigation handler
-  custom,
 }

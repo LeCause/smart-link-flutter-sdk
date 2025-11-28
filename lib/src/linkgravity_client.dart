@@ -397,7 +397,7 @@ class LinkGravityClient {
 
   /// Register deep link routes for automatic navigation
   ///
-  /// This is the recommended way to handle deep links in FlutterFlow apps.
+  /// This is the recommended way to handle deep links in your app.
   /// It automatically handles both cold start (initial link) and warm start
   /// (incoming links while app is running) scenarios.
   ///
@@ -418,13 +418,16 @@ class LinkGravityClient {
   /// LinkGravityClient.instance.registerRoutes(
   ///   context: context,
   ///   routes: {
-  ///     '/product': (deepLink) => RouteAction.goNamed(
-  ///       'ProductPage',
-  ///       extra: {'id': deepLink.getParam('id')},
-  ///     ),
-  ///     '/profile': (deepLink) => RouteAction.custom((ctx) {
-  ///       // Custom logic
-  ///       ctx.pushNamed('ProfilePage');
+  ///     '/product': (deepLink) => RouteAction((ctx, data) {
+  ///       // FlutterFlow with go_router
+  ///       ctx.goNamed(
+  ///         'ProductPage',
+  ///         extra: {'id': data.getParam('id')},
+  ///       );
+  ///     }),
+  ///     '/profile': (deepLink) => RouteAction((ctx, data) {
+  ///       // Standard Flutter Navigator
+  ///       Navigator.of(ctx).pushNamed('/profile', arguments: data.params);
   ///     }),
   ///   },
   /// );
@@ -490,7 +493,7 @@ class LinkGravityClient {
 
         try {
           final action = actionBuilder(deepLink);
-          action.execute(_routeContext!);
+          action.execute(_routeContext!, deepLink);
         } catch (e, stackTrace) {
           LinkGravityLogger.error(
               'Error executing route action for $routePattern', e, stackTrace);
