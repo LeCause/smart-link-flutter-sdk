@@ -324,8 +324,21 @@ class DeferredDeepLinkService {
     return 'en-US';
   }
 
-  /// Generate User-Agent string (simplified)
-  String _getUserAgent() {
+  /// Generate User-Agent string
+  /// Returns web UA from matched click if available, otherwise fallback to platform-specific UA
+  String _getUserAgent({DeepLinkMatch? matchedClick}) {
+    // 1. Try to get real User-Agent from web fingerprint (if available)
+    final webUA = matchedClick?.webFingerprint?.userAgent;
+    if (webUA != null && webUA.isNotEmpty) {
+      LinkGravityLogger.debug(
+          'Using real browser User-Agent from web fingerprint');
+      return webUA;
+    }
+
+    // 2. Fallback to platform-specific User-Agent (simplified)
+    LinkGravityLogger.debug(
+        'Using fallback User-Agent (web fingerprint not available)');
+
     if (Platform.isIOS) {
       return 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15';
     } else if (Platform.isAndroid) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -16,6 +17,8 @@ import 'services/deep_link_service.dart';
 import 'services/deferred_deep_link_service.dart';
 import 'services/analytics_service.dart';
 import 'services/install_referrer_service.dart';
+import 'services/skadnetwork_service.dart';
+import 'services/idfa_service.dart';
 import 'linkgravity_config.dart';
 import 'utils/logger.dart';
 
@@ -71,6 +74,8 @@ class LinkGravityClient {
   late final DeepLinkService _deepLink;
   late final InstallReferrerService _installReferrer;
   late final AnalyticsService _analytics;
+  late final SKAdNetworkService _skadnetwork;
+  late final IDFAService _idfa;
 
   /// Whether SDK has been initialized
   bool _initialized = false;
@@ -118,6 +123,8 @@ class LinkGravityClient {
       enabled: config.enableAnalytics,
       offlineQueueEnabled: config.enableOfflineQueue,
     );
+    _skadnetwork = SKAdNetworkService(apiService: _api);
+    _idfa = IDFAService();
   }
 
   /// Initialize the LinkGravity SDK
@@ -1002,5 +1009,236 @@ class LinkGravityClient {
     _instance = null;
 
     LinkGravityLogger.info('LinkGravity SDK disposed');
+  }
+
+  // ==========================================
+  // iOS Attribution - SKAdNetwork & IDFA/ATT
+  // ==========================================
+
+  /// Request tracking authorization from user (iOS only)
+  ///
+  /// Shows the iOS system prompt asking for permission to track.
+  /// Only available on iOS 14.0+
+  ///
+  /// **Important:**
+  /// - Add `NSUserTrackingUsageDescription` to your Info.plist
+  /// - This should be called at an appropriate moment when user understands the value
+  /// - Can only be requested once per app installation
+  ///
+  /// **Privacy Note:**
+  /// IDFA collection is completely optional. By default, LinkGravity uses
+  /// privacy-first probabilistic attribution. Use this only if you need
+  /// deterministic attribution and have proper consent.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Check if we should request permission
+  /// if (Platform.isIOS) {
+  ///   final status = await linkGravity.getTrackingAuthorizationStatus();
+  ///   if (status == TrackingAuthorizationStatus.notDetermined) {
+  ///     // Good time to show explanation to user, then request
+  ///     final newStatus = await linkGravity.requestTrackingAuthorization();
+  ///     if (newStatus == TrackingAuthorizationStatus.authorized) {
+  ///       print('User granted tracking permission');
+  ///     }
+  ///   }
+  /// }
+  /// ```
+  Future<TrackingAuthorizationStatus> requestTrackingAuthorization() async {
+    if (!Platform.isIOS) {
+      LinkGravityLogger.debug('ATT: Not available on non-iOS platform');
+      return TrackingAuthorizationStatus.notDetermined;
+    }
+
+    final status = await _idfa.requestTrackingAuthorization();
+
+    // If authorized, collect IDFA and update fingerprint
+    if (status == TrackingAuthorizationStatus.authorized) {
+      final idfa = await _idfa.getIDFA();
+      if (idfa != null) {
+        LinkGravityLogger.info('ATT: IDFA collected for deterministic attribution');
+        // IDFA will be included in future fingerprint updates
+      }
+    }
+
+    return status;
+  }
+
+  /// Get current tracking authorization status (iOS only)
+  ///
+  /// Check status without requesting permission
+  ///
+  /// Example:
+  /// ```dart
+  /// final status = await linkGravity.getTrackingAuthorizationStatus();
+  /// switch (status) {
+  ///   case TrackingAuthorizationStatus.authorized:
+  ///     print('Tracking authorized');
+  ///     break;
+  ///   case TrackingAuthorizationStatus.denied:
+  ///     print('User denied tracking');
+  ///     break;
+  ///   case TrackingAuthorizationStatus.notDetermined:
+  ///     print('User has not been asked yet');
+  ///     break;
+  ///   case TrackingAuthorizationStatus.restricted:
+  ///     print('Tracking restricted (e.g., parental controls)');
+  ///     break;
+  /// }
+  /// ```
+  Future<TrackingAuthorizationStatus> getTrackingAuthorizationStatus() async {
+    return _idfa.getTrackingAuthorizationStatus();
+  }
+
+  /// Get IDFA if available (iOS only)
+  ///
+  /// Returns null if user hasn't authorized tracking or IDFA is unavailable
+  ///
+  /// Example:
+  /// ```dart
+  /// final idfa = await linkGravity.getIDFA();
+  /// if (idfa != null) {
+  ///   print('IDFA available for deterministic attribution');
+  /// } else {
+  ///   print('Using probabilistic attribution');
+  /// }
+  /// ```
+  Future<String?> getIDFA() async {
+    return _idfa.getIDFA();
+  }
+
+  /// Update SKAdNetwork conversion value (iOS 14.0+)
+  ///
+  /// Report conversion events to ad networks via SKAdNetwork.
+  /// Use this to track in-app events for iOS ad attribution.
+  ///
+  /// [conversionValue] must be 0-63 (6-bit value)
+  ///
+  /// **Conversion Value Schema Example:**
+  /// - 0-10: Tutorial progress
+  /// - 11-20: Feature usage
+  /// - 21-40: Purchase events
+  /// - 41-63: LTV tiers
+  ///
+  /// Example:
+  /// ```dart
+  /// // User completed tutorial
+  /// await linkGravity.updateConversionValue(10);
+  ///
+  /// // User made first purchase
+  /// await linkGravity.updateConversionValue(21);
+  ///
+  /// // User reached high LTV tier
+  /// await linkGravity.updateConversionValue(50);
+  /// ```
+  Future<bool> updateConversionValue(int conversionValue) async {
+    if (!Platform.isIOS) {
+      LinkGravityLogger.debug('SKAdNetwork: Not available on non-iOS platform');
+      return false;
+    }
+
+    return _skadnetwork.updateConversionValue(conversionValue);
+  }
+
+  /// Update SKAdNetwork postback conversion value (iOS 15.4+)
+  ///
+  /// Advanced conversion tracking with fine and coarse values.
+  /// Provides more granular conversion tracking than basic conversion value.
+  ///
+  /// [fineValue]: 6-bit fine-grained value (0-63)
+  /// [coarseValue]: Coarse conversion value ('low', 'medium', 'high')
+  /// [lockWindow]: Whether to lock the conversion window
+  ///
+  /// Example:
+  /// ```dart
+  /// // High-value conversion with specific fine value
+  /// await linkGravity.updatePostbackConversionValue(
+  ///   fineValue: 42,
+  ///   coarseValue: 'high',
+  ///   lockWindow: false,
+  /// );
+  ///
+  /// // Lock window after critical conversion
+  /// await linkGravity.updatePostbackConversionValue(
+  ///   fineValue: 63,
+  ///   coarseValue: 'high',
+  ///   lockWindow: true, // Lock to prevent further updates
+  /// );
+  /// ```
+  Future<bool> updatePostbackConversionValue({
+    required int fineValue,
+    required String coarseValue,
+    bool lockWindow = false,
+  }) async {
+    if (!Platform.isIOS) {
+      LinkGravityLogger.debug('SKAdNetwork: Not available on non-iOS platform');
+      return false;
+    }
+
+    return _skadnetwork.updatePostbackConversionValue(
+      fineValue: fineValue,
+      coarseValue: coarseValue,
+      lockWindow: lockWindow,
+    );
+  }
+
+  /// Get SKAdNetwork version available on this device
+  ///
+  /// Returns version like "4.0", "3.0", "2.2", "2.0", or "Not supported"
+  ///
+  /// Example:
+  /// ```dart
+  /// final version = await linkGravity.getSKAdNetworkVersion();
+  /// print('SKAdNetwork version: $version');
+  ///
+  /// if (version == '4.0') {
+  ///   // Use advanced features
+  ///   await linkGravity.updatePostbackConversionValue(
+  ///     fineValue: 42,
+  ///     coarseValue: 'high',
+  ///   );
+  /// } else if (version == '2.0' || version == '3.0') {
+  ///   // Use basic conversion value
+  ///   await linkGravity.updateConversionValue(42);
+  /// }
+  /// ```
+  Future<String> getSKAdNetworkVersion() async {
+    return _skadnetwork.getSKAdNetworkVersion();
+  }
+
+  /// Check if SKAdNetwork is available on this device
+  ///
+  /// Returns true on iOS 14.0+, false otherwise
+  Future<bool> isSKAdNetworkAvailable() async {
+    return _skadnetwork.isAvailable();
+  }
+
+  /// Get comprehensive iOS attribution info for debugging
+  ///
+  /// Returns information about SKAdNetwork and ATT status
+  ///
+  /// Example:
+  /// ```dart
+  /// final info = await linkGravity.getIOSAttributionInfo();
+  /// print('SKAdNetwork: ${info['skadnetwork']}');
+  /// print('ATT: ${info['att']}');
+  /// ```
+  Future<Map<String, dynamic>> getIOSAttributionInfo() async {
+    if (!Platform.isIOS) {
+      return {
+        'platform': 'non-iOS',
+        'skadnetwork': {'available': false},
+        'att': {'available': false},
+      };
+    }
+
+    final skadConfig = await _skadnetwork.getConfig();
+    final attInfo = await _idfa.getTrackingInfo();
+
+    return {
+      'platform': 'iOS',
+      'skadnetwork': skadConfig,
+      'att': attInfo,
+    };
   }
 }

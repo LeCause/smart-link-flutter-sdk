@@ -60,6 +60,8 @@ export 'src/models/route_action.dart';
 // Services (for advanced usage)
 export 'src/services/api_service.dart' show ApiException;
 export 'src/services/install_referrer_service.dart';
+export 'src/services/skadnetwork_service.dart';
+export 'src/services/idfa_service.dart';
 
 // Utilities
 export 'src/utils/logger.dart' show LogLevel;
