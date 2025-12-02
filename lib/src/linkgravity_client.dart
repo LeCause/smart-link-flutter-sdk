@@ -282,13 +282,17 @@ class LinkGravityClient {
 
         // Emit deep link event
         final uri = Uri.parse(match.deepLinkUrl!);
+        LinkGravityLogger.debug('🔍 Parsing deep link URL: ${match.deepLinkUrl}');
         final deepLink = _deepLink.parseLink(uri);
+        LinkGravityLogger.debug('🔍 Parsed deep link - Path: ${deepLink.path}, Params: ${deepLink.params}');
 
         // Set as initial link so it's available via initialDeepLink getter
         // This allows the app to check for deferred links after initialization
         _deepLink.initialLink = deepLink;
+        LinkGravityLogger.debug('🔍 Set initialLink in DeepLinkService: ${deepLink.path}');
 
         _deepLink.linkController.add(deepLink);
+        LinkGravityLogger.debug('🔍 Emitted deep link to stream (may have no listeners yet)');
       } else {
         LinkGravityLogger.debug('No deferred deep link found');
       }
@@ -484,24 +488,34 @@ class LinkGravityClient {
     _registeredRoutes = _convertRoutesToActions(routes);
 
     LinkGravityLogger.info('Registering ${routes.length} deep link routes...');
+    LinkGravityLogger.debug('🔍 Registered route patterns: ${_registeredRoutes!.keys.toList()}');
 
     // Handle initial deep link (cold start)
     final initialLink = _deepLink.initialLink;
+    LinkGravityLogger.debug('🔍 Checking for initialLink: ${initialLink != null ? initialLink.path : "null"}');
+
     if (initialLink != null) {
-      LinkGravityLogger.info('Processing initial deep link: ${initialLink.path}');
+      LinkGravityLogger.info('✅ Found initial deep link, processing: ${initialLink.path}');
       _handleRouteMatch(initialLink);
       // Clear initial link after processing to prevent duplicate handling
       _deepLink.initialLink = null;
+      LinkGravityLogger.debug('🔍 Cleared initialLink after processing');
+    } else {
+      LinkGravityLogger.warning('⚠️ No initialLink found - deferred link may not have been set');
     }
 
     // Listen for future deep links (warm start)
     _routeStreamSubscription?.cancel();
     _routeStreamSubscription = _deepLink.linkStream.listen(
-      _handleRouteMatch,
+      (deepLink) {
+        LinkGravityLogger.debug('🔍 Received deep link from stream: ${deepLink.path}');
+        _handleRouteMatch(deepLink);
+      },
       onError: (error, stackTrace) {
         LinkGravityLogger.error('Deep link stream error', error, stackTrace);
       },
     );
+    LinkGravityLogger.debug('🔍 Stream listener registered for future deep links');
 
     LinkGravityLogger.info('✅ Deep link routes registered successfully');
   }
@@ -575,13 +589,17 @@ class LinkGravityClient {
   ///
   /// This is called automatically by [registerRoutes] when a deep link is received.
   void _handleRouteMatch(DeepLinkData deepLink) {
+    LinkGravityLogger.debug('🔍 _handleRouteMatch called with path: ${deepLink.path}');
+
     if (_routeContext == null || _registeredRoutes == null) {
       LinkGravityLogger.warning(
-          'Route context not available, cannot handle deep link');
+          '❌ Route context not available (context: ${_routeContext != null}, routes: ${_registeredRoutes != null})');
       return;
     }
 
-    LinkGravityLogger.debug('Attempting to match route for: ${deepLink.path}');
+    LinkGravityLogger.debug('🔍 Attempting to match route for: ${deepLink.path}');
+    LinkGravityLogger.debug('🔍 Match mode: ${_matchPrefix ? "prefix" : "exact"}');
+    LinkGravityLogger.debug('🔍 Available routes: ${_registeredRoutes!.keys.toList()}');
 
     for (final entry in _registeredRoutes!.entries) {
       final routePattern = entry.key;
@@ -591,16 +609,21 @@ class LinkGravityClient {
           ? deepLink.path.startsWith(routePattern)
           : deepLink.path == routePattern;
 
+      LinkGravityLogger.debug('🔍 Testing pattern "$routePattern" against "${deepLink.path}": ${matches ? "MATCH" : "no match"}');
+
       if (matches) {
         LinkGravityLogger.info(
             '✅ Matched route: $routePattern -> ${deepLink.path}');
 
         try {
+          LinkGravityLogger.debug('🔍 Building action for route: $routePattern');
           final action = actionBuilder(deepLink);
+          LinkGravityLogger.debug('🔍 Executing action with context');
           action.execute(_routeContext!, deepLink);
+          LinkGravityLogger.info('✅ Action executed successfully for: ${deepLink.path}');
         } catch (e, stackTrace) {
           LinkGravityLogger.error(
-              'Error executing route action for $routePattern', e, stackTrace);
+              '❌ Error executing route action for $routePattern', e, stackTrace);
         }
 
         return; // First match wins
@@ -608,6 +631,7 @@ class LinkGravityClient {
     }
 
     LinkGravityLogger.warning('⚠️ No route matched for: ${deepLink.path}');
+    LinkGravityLogger.warning('⚠️ This means the deep link path does not match any registered route pattern');
   }
 
   // ============================================================================

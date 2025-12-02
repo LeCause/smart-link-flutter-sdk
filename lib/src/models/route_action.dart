@@ -70,14 +70,18 @@ class RouteAction {
   /// You typically don't need to call this directly - the SDK handles it
   /// when you register routes with [LinkGravityClient.registerRoutes].
   void execute(BuildContext context, DeepLinkData deepLink) {
+    LinkGravityLogger.debug('🔍 RouteAction.execute() - Scheduling microtask for navigation');
     scheduleMicrotask(() {
+      LinkGravityLogger.debug('🔍 Microtask executing - calling navigation handler');
       try {
         handler(context, deepLink);
+        LinkGravityLogger.info('✅ Navigation handler completed successfully');
       } catch (e, stackTrace) {
-        LinkGravityLogger.error('Route handler failed', e, stackTrace);
+        LinkGravityLogger.error('❌ Route handler failed', e, stackTrace);
         rethrow;
       }
     });
+    LinkGravityLogger.debug('🔍 Microtask scheduled (will execute after current frame)');
   }
 
   @override

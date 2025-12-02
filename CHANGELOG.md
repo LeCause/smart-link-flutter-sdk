@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Affects `getTrackingAuthorizationStatus()` method (line 23)
   - Affects `requestTrackingAuthorization()` completion handler (line 63)
   - Resolves build errors on iOS when using the ATT framework
+- **[API-002] Event Batch Format**: Fixed event batch format to match backend API schema
+  - Backend expects `{ events: [{ type, properties, ... }] }` format
+  - SDK was sending `{ events: [{ name, data, ... }] }` format
+  - Added transformation in `ApiService.sendBatch()` to convert `name` → `type` and `data` → `properties`
+  - Resolves 400 Bad Request errors when sending analytics events
 
 ### Breaking Changes
 - None (bug fix only)

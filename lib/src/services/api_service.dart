@@ -438,13 +438,29 @@ class ApiService {
 
   /// Send batch of analytics events
   /// POST /api/v1/events (bulk)
+  ///
+  /// Backend expects: { events: [{ type, properties, timestamp, sessionId }], fingerprint?, deviceId?, sessionId? }
+  /// SDK sends: { events: [{ id, name, data, timestamp, ... }] }
+  /// This method transforms the SDK format to match the backend schema.
   Future<void> sendBatch(List<AnalyticsEvent> events) async {
     if (events.isEmpty) return;
 
-    final eventsJson = events.map((e) => e.toJson()).toList();
+    // Transform events to match backend schema
+    // Backend uses 'type' instead of 'name' and 'properties' instead of 'data'
+    final eventsJson = events.map((e) => {
+      'type': e.name,
+      'properties': e.data,
+      'timestamp': e.timestamp.toIso8601String(),
+      if (e.sessionId != null) 'sessionId': e.sessionId,
+    }).toList();
+
+    // Extract common fields from first event (all events in batch share same fingerprint/session)
+    final firstEvent = events.first;
 
     await _post('/api/v1/events', {
       'events': eventsJson,
+      if (firstEvent.fingerprint != null) 'fingerprint': firstEvent.fingerprint,
+      if (firstEvent.sessionId != null) 'sessionId': firstEvent.sessionId,
     });
 
     LinkGravityLogger.info('Sent ${events.length} events to backend');
