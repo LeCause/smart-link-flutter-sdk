@@ -395,6 +395,159 @@ class LinkGravityClient {
   /// Get initial deep link (if app was opened via deep link)
   DeepLinkData? get initialDeepLink => _deepLink.initialLink;
 
+  /// Resolve a shortCode to its target route
+  ///
+  /// This is the Branch.io pattern for handling App Links when the app is already installed.
+  /// When Android/iOS intercepts an App Link like `https://linkgravity.io/tappick-test`,
+  /// the app receives the path `/tappick-test` but doesn't know what route to navigate to.
+  ///
+  /// This method calls the backend to resolve the shortCode to the actual route.
+  ///
+  /// Parameters:
+  /// - [shortCode]: The short code to resolve (e.g., 'tappick-test')
+  /// - [platform]: Platform name ('android' or 'ios'), auto-detected if not provided
+  ///
+  /// Returns a map with:
+  /// - success: true/false
+  /// - route: The target route (e.g., '/hidden?ref=Test13')
+  /// - destination: The original long URL
+  /// - utm: UTM parameters object
+  ///
+  /// Returns null if the shortCode cannot be resolved.
+  ///
+  /// Example:
+  /// ```dart
+  /// // App receives deep link: http://192.168.178.75:8080/tappick-test
+  /// final deepLink = DeepLinkData.fromUri(uri); // path = '/tappick-test'
+  /// final shortCode = deepLink.path.substring(1); // 'tappick-test'
+  ///
+  /// final result = await linkGravity.resolveShortCode(shortCode);
+  /// if (result != null && result['success'] == true) {
+  ///   final route = result['route']; // '/hidden?ref=Test13'
+  ///   context.goNamed(route);
+  /// }
+  /// ```
+  Future<Map<String, dynamic>?> resolveShortCode(
+    String shortCode, {
+    String? platform,
+  }) async {
+    _ensureInitialized();
+
+    // Auto-detect platform if not provided
+    platform ??= await _fingerprint.getPlatformName();
+
+    LinkGravityLogger.info('Resolving shortCode: $shortCode (platform: $platform)');
+
+    final result = await _api.resolveShortCode(
+      shortCode,
+      platform: platform,
+    );
+
+    if (result != null && result['success'] == true) {
+      // Track shortCode resolution event
+      if (config.enableAnalytics) {
+        await _analytics.trackEvent(
+          EventType.deepLinkOpened,
+          {
+            'shortCode': shortCode,
+            'route': result['route'],
+            'destination': result['destination'],
+            'platform': platform,
+          },
+        );
+      }
+
+      return result;
+    }
+
+    LinkGravityLogger.warning('Failed to resolve shortCode: $shortCode');
+    return null;
+  }
+
+  /// Resolve and navigate to shortCode
+  ///
+  /// Convenience method that combines resolveShortCode with automatic navigation.
+  /// This is useful for handling App Links that are intercepted by the OS.
+  ///
+  /// Parameters:
+  /// - [deepLink]: The deep link data received from the OS
+  /// - [context]: BuildContext for navigation
+  /// - [platform]: Platform name, auto-detected if not provided
+  ///
+  /// Returns true if the shortCode was resolved and navigation was attempted.
+  ///
+  /// Example:
+  /// ```dart
+  /// linkGravity.onDeepLink.listen((deepLink) async {
+  ///   final resolved = await linkGravity.resolveAndNavigate(
+  ///     deepLink: deepLink,
+  ///     context: context,
+  ///   );
+  ///
+  ///   if (!resolved) {
+  ///     // Handle fallback - shortCode not found or navigation failed
+  ///     print('Could not resolve shortCode: ${deepLink.path}');
+  ///   }
+  /// });
+  /// ```
+  Future<bool> resolveAndNavigate({
+    required DeepLinkData deepLink,
+    required BuildContext context,
+    String? platform,
+  }) async {
+    _ensureInitialized();
+
+    // Extract shortCode from path
+    final shortCode = _deepLink.extractShortCode(deepLink);
+    if (shortCode == null) {
+      LinkGravityLogger.warning('No shortCode found in path: ${deepLink.path}');
+      return false;
+    }
+
+    // Resolve shortCode to route
+    final result = await resolveShortCode(shortCode, platform: platform);
+    if (result == null || result['success'] != true) {
+      return false;
+    }
+
+    final route = result['route'] as String?;
+    if (route == null) {
+      LinkGravityLogger.warning('No route returned for shortCode: $shortCode');
+      return false;
+    }
+
+    // Navigate to the resolved route
+    try {
+      // Parse the route to extract path and query parameters
+      final routeUri = Uri.parse(route.startsWith('/') ? route : '/$route');
+      final resolvedDeepLink = DeepLinkData.fromUri(routeUri);
+
+      // Use the existing route matching logic if routes are registered
+      if (_registeredRoutes != null && _routeContext != null) {
+        LinkGravityLogger.info('Using registered routes to navigate to: $route');
+        _handleRouteMatch(resolvedDeepLink);
+        return true;
+      }
+
+      // Otherwise, try direct navigation
+      LinkGravityLogger.info('Navigating directly to: $route');
+      try {
+        // Try go_router style first (FlutterFlow default)
+        // ignore: avoid_dynamic_calls
+        (context as dynamic).go(route);
+      } catch (e) {
+        // Fallback to standard Navigator
+        Navigator.of(context).pushNamed(route);
+      }
+
+      return true;
+    } catch (e, stackTrace) {
+      LinkGravityLogger.error(
+          'Failed to navigate to route: $route', e, stackTrace);
+      return false;
+    }
+  }
+
   /// Register deep link routes for automatic navigation
   ///
   /// This is the recommended way to handle deep links in your app.
